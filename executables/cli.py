@@ -1,14 +1,16 @@
 import random
 import pathlib
+import pandas as pd
 
 from typing import Optional
 
 import click
 from schnapsen.alternative_engines.ace_one_engine import AceOneGamePlayEngine
 
-from schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot
+from schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot, BullyBot
 
 from schnapsen.bots.example_bot import ExampleBot
+from schnapsen.bots.blitz_siege import Blitz, Siege
 
 from schnapsen.game import (Bot, GamePlayEngine, Move, PlayerPerspective,
                             SchnapsenGamePlayEngine, TrumpExchange)
@@ -204,6 +206,58 @@ def game_ace_one() -> None:
         winner_id, game_points, score = engine.play_game(bot1, bot2, random.Random(i))
         print(f"Game ended. Winner is {winner_id} with {game_points} points, score {score}")
 
+def run_tournament(games: int, bot: Bot) -> dict[int, dict[str, any]]:
+    """
+    Plays 'games' amount of games with 'bot' against RandBot, BullyBot and BullyBot and returns the results of each game.
+
+    Params:
+        games (int): number of games to play
+        bot (Bot): the bot that plays against the baseline bots
+
+    Returns:
+        dict[int, dict[str, any]]: The name of the winner, score of the winner, name of loser and score of loser in each match
+    """
+    engine = SchnapsenGamePlayEngine()
+    
+    baselines: list[Bot] = [RandBot(random.Random(81), "rand"), BullyBot(random.Random(24), "bully"), RdeepBot(4, 10, random.Random(1221), "rdeep")]
+    
+    scores:dict[int, dict[str, any]] = {}
+
+    game = 1
+    for baseline in baselines:
+        for i in range(games):
+            state = engine.play_game(bot, baseline, random.Random(i))
+            scores[game] = state
+            game += 1
+    
+    return scores
+
+@main.command()
+@click.option("--games", default=2500, show_default=True, type=int)
+def get_tournament_data(games: int) -> None:
+    """
+    Stores scores of each game the bots played against the baseline in separate csv files.
+    
+    Params:
+        games (int): number of different games the bots should play against the baseline bots.
+
+    Returns:
+        None
+    """
+    BLITZ_TOURNAMENTS: str = "../experiments/blitz_tournament.csv"
+    SIEGE_TOURNAMENTS: str = "../experiments/siege_tournament.csv"
+    
+    # TODO: replace these with actual bots
+    blitz_scores = run_tournament(games, Blitz("blitz"))
+    siege_scores = run_tournament(games, Siege("siege"))
+    
+    # store game data for blitz
+    df = pd.DataFrame.from_dict(blitz_scores, orient="index")
+    df.to_csv(BLITZ_TOURNAMENTS, index=False)
+
+    # store game data for siege
+    df = pd.DataFrame.from_dict(siege_scores, orient="index")
+    df.to_csv(SIEGE_TOURNAMENTS, index=False)
 
 if __name__ == "__main__":
     main()
