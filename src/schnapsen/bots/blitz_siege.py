@@ -7,7 +7,7 @@ from schnapsen.game import (
     RegularMove
 )
 from typing import Optional
-from schnapsen.bots import RdeepBot
+from schnapsen import bot_import
 import random
 
 class HighCardsBot(Bot):
@@ -39,7 +39,7 @@ class Blitz(Bot):
     def __init__(self, name: Optional[str] = None) -> None:
         super().__init__()
         self.delegate_phase1 = HighCardsBot
-        self.delegate_phase2 = RdeepBot(4, 10, random.Random)
+        self.delegate_phase2 = bot_import()
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
         """Get the move for the Bot.
@@ -55,7 +55,7 @@ class Blitz(Bot):
 class Siege(Bot):
     def __init__(self, name: Optional[str] = None) -> None:
         super().__init__()
-        self.delegate_phase1 = RdeepBot(4, 10, random.Random)
+        self.delegate_phase1 = bot_import()
         self.delegate_phase2 = HighCardsBot
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
