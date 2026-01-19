@@ -1,0 +1,10 @@
+winner,winner_score,loser,loser_score
+blitz,78,rand,6
+rand,66,blitz,14
+blitz,59,rand,61
+blitz,75,bully,40
+blitz,60,bully,60
+blitz,57,bully,63
+rdeep,74,blitz,19
+rdeep,66,blitz,6
+rdeep,68,blitz,38

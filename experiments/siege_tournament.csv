@@ -1,0 +1,10 @@
+winner,winner_score,loser,loser_score
+siege,76,rand,0
+siege,75,rand,6
+siege,68,rand,25
+siege,68,bully,13
+siege,73,bully,54
+siege,70,bully,6
+rdeep,70,siege,37
+rdeep,72,siege,62
+rdeep,74,siege,46

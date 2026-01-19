@@ -28,6 +28,15 @@ class Bot(ABC):
         if name:
             self.__name = name
 
+    def get_name(self) -> str:
+        """
+        Returns name of the bot
+        
+        Returns:
+            str: Name of bot
+        """
+        return self.__name
+
     @abstractmethod
     def get_move(self, perspective: PlayerPerspective, leader_move: Optional[Move]) -> Move:
         """
@@ -1983,7 +1992,7 @@ class GamePlayEngine:
     move_validator: MoveValidator
     trick_scorer: TrickScorer
 
-    def play_game(self, bot1: Bot, bot2: Bot, rng: Random) -> tuple[Bot, int, Score]:
+    def play_game(self, bot1: Bot, bot2: Bot, rng: Random) -> dict[str, any]:
         """
         Play a game between bot1 and bot2, using the rng to create the game.
 
@@ -1991,7 +2000,7 @@ class GamePlayEngine:
         :param bot2: The second bot playing the game. This bot will be the follower for the first trick.
         :param rng: The random number generator used to shuffle the deck.
 
-        :returns: A tuple with the bot which won the game, the number of points obtained from this game and the score attained.
+        :returns: A dictionary with the bot which won the game, the score it attained, the bot which lost the game, and the score it attained.
         """
         cards = self.deck_generator.get_initial_deck()
         shuffled = self.deck_generator.shuffle_deck(cards, rng)
@@ -2006,8 +2015,8 @@ class GamePlayEngine:
             talon=talon,
             previous=None
         )
-        winner, points, score = self.play_game_from_state(game_state=game_state, leader_move=None)
-        return winner, points, score
+        
+        return self.play_game_from_state(game_state=game_state, leader_move=None)
 
     def get_random_phase_two_state(self, rng: Random) -> GameState:
         """
@@ -2068,7 +2077,8 @@ class GamePlayEngine:
         game_state_copy = game_state.copy_with_other_bots(new_leader=new_leader, new_follower=new_follower)
         return self.play_game_from_state(game_state_copy, leader_move=leader_move)
 
-    def play_game_from_state(self, game_state: GameState, leader_move: Optional[Move]) -> tuple[Bot, int, Score]:
+    # def play_game_from_state(self, game_state: GameState, leader_move: Optional[Move]) -> tuple[Bot, int, Score]:
+    def play_game_from_state(self, game_state: GameState, leader_move: Optional[Move]) -> dict[str, any]:
         """
         Continue a game  which might have been started before.
         The leader move is an optional paramter which can be provided to force this first move from the leader.
@@ -2076,7 +2086,7 @@ class GamePlayEngine:
         :param game_state: The state of the game to start from
         :param leader_move: if provided, the leader will be forced to play this move as its first move.
 
-        :returns: A tuple with the bot which won the game, the number of points obtained from this game and the score attained.
+        :returns: A dictionary with the bot which won the game, the score it attained, the bot which lost the game, and the score it attained.
         """
         winner: Optional[BotState] = None
         points: int = -1
@@ -2095,7 +2105,14 @@ class GamePlayEngine:
         loser_state = LoserPerspective(game_state, self)
         game_state.follower.implementation.notify_game_end(False, perspective=loser_state)
 
-        return winner.implementation, points, winner.score
+        state_dict = {
+            "winner": winner.implementation.get_name(),
+            "winner_score": winner.score.direct_points,
+            "loser": game_state.follower.implementation.get_name(),
+            "loser_score": game_state.follower.score.direct_points
+        }
+
+        return state_dict
 
     def play_one_trick(self, game_state: GameState, new_leader: Bot, new_follower: Bot) -> GameState:
         """

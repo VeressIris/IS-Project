@@ -7,7 +7,7 @@ from schnapsen.game import (
     RegularMove
 )
 from typing import Optional
-from schnapsen import bot_import
+from schnapsen.bots import RdeepBot
 import random
 
 class HighCardsBot(Bot):
@@ -37,9 +37,9 @@ class HighCardsBot(Bot):
 
 class Blitz(Bot):
     def __init__(self, name: Optional[str] = None) -> None:
-        super().__init__()
-        self.delegate_phase1 = HighCardsBot
-        self.delegate_phase2 = bot_import()
+        super().__init__(name)
+        self.delegate_phase1 = HighCardsBot()
+        self.delegate_phase2 = RdeepBot(num_samples=16, depth=4, rand=random.Random())
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
         """Get the move for the Bot.
@@ -54,9 +54,9 @@ class Blitz(Bot):
 
 class Siege(Bot):
     def __init__(self, name: Optional[str] = None) -> None:
-        super().__init__()
-        self.delegate_phase1 = bot_import()
-        self.delegate_phase2 = HighCardsBot
+        super().__init__(name)
+        self.delegate_phase1 = RdeepBot(num_samples=16, depth=4, rand=random.Random())
+        self.delegate_phase2 = HighCardsBot()
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
         """Get the move for the Bot.
@@ -66,5 +66,5 @@ class Siege(Bot):
             return self.delegate_phase1.get_move(perspective, leader_move)
         if perspective.get_phase() == GamePhase.TWO:
             #delegates to HighCardsBot
-            return self.delegate_phase1.get_move(perspective, leader_move)
+            return self.delegate_phase2.get_move(perspective, leader_move)
         

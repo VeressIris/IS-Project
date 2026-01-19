@@ -8,5 +8,6 @@ from .ml_bot import MLDataBot, MLPlayingBot, train_ML_model
 from .gui.guibot import SchnapsenServer
 from .minimax import MiniMaxBot
 from .bully_bot import BullyBot
+from .blitz_siege import Blitz, Siege
 
-__all__ = ["RandBot", "AlphaBetaBot", "RdeepBot", "MLDataBot", "MLPlayingBot", "train_ML_model", "SchnapsenServer", "MiniMaxBot", "BullyBot"]
+__all__ = ["RandBot", "AlphaBetaBot", "RdeepBot", "MLDataBot", "MLPlayingBot", "train_ML_model", "SchnapsenServer", "MiniMaxBot", "BullyBot", "Blitz", "Siege"]
