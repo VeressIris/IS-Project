@@ -278,9 +278,12 @@ def get_win_rate(winner_name: str, opponent_name: str, tournament_path: str) -> 
 
     return wins / games
 
+@main.command()
+@click.option("--bot", type=str)
+@click.option("--tournament-path", type=str)
 def show_win_rate_graph(bot: str, tournament_path: str) -> None:
     """
-    Docstring for show_win_rate_graph
+    Plot bar graph comparing the win rate of a specified bot against the baselines.
     
     Params:
         bot (str) : name of bot
@@ -306,5 +309,4 @@ def show_win_rate_graph(bot: str, tournament_path: str) -> None:
     plt.show()
 
 if __name__ == "__main__":
-    show_win_rate_graph("blitz", "../experiments/blitz_tournament.csv")
     main()
