@@ -1,6 +1,7 @@
 import random
 import pathlib
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from typing import Optional
 
@@ -219,7 +220,7 @@ def run_tournament(games: int, bot: Bot) -> dict[int, dict[str, any]]:
     """
     engine = SchnapsenGamePlayEngine()
     
-    baselines: list[Bot] = [RandBot(random.Random(81), "rand"), BullyBot(random.Random(24), "bully"), RdeepBot(4, 10, random.Random(1221), "rdeep")]
+    baselines: list[Bot] = [RandBot(random.Random(81), "RandBot"), BullyBot(random.Random(24), "BullyBot"), RdeepBot(4, 10, random.Random(1221), "RdeepBot")]
     
     scores:dict[int, dict[str, any]] = {}
 
@@ -247,7 +248,6 @@ def get_tournament_data(games: int) -> None:
     BLITZ_TOURNAMENTS: str = "../experiments/blitz_tournament.csv"
     SIEGE_TOURNAMENTS: str = "../experiments/siege_tournament.csv"
     
-    # TODO: replace these with actual bots
     blitz_scores = run_tournament(games, Blitz("blitz"))
     siege_scores = run_tournament(games, Siege("siege"))
     
@@ -259,5 +259,52 @@ def get_tournament_data(games: int) -> None:
     df = pd.DataFrame.from_dict(siege_scores, orient="index")
     df.to_csv(SIEGE_TOURNAMENTS, index=False)
 
+def get_win_rate(winner_name: str, opponent_name: str, tournament_path: str) -> float:
+    """
+    Calculates the win rate of a bot against another specified bot.
+    
+    Params:
+        winner_name (str): name of winning bot
+        opponent_name (str): name of opponent bot
+        tournament_path (str): path to file that contains the tournament information of the winner bot
+    
+    Returns:
+        float: Win rate of specified bot
+    """
+    df = pd.read_csv(tournament_path)
+    games = df.shape[0] // 3 # divided by 3 because we have 3 baseline bots
+    winning_games = df[(df['winner'] == winner_name) & (df['loser'] == opponent_name)] # get only games played against specified opponent
+    wins = winning_games.shape[0]
+
+    return wins / games
+
+def show_win_rate_graph(bot: str, tournament_path: str) -> None:
+    """
+    Docstring for show_win_rate_graph
+    
+    Params:
+        bot (str) : name of bot
+        tournament_path (str): path to file that contains the tournament information of the bot
+
+    Returns:
+        None
+    """
+    index: list[str] = ["RandBot", "BullyBot", "RdeepBot"]
+    
+    baselines_win_rates: list[float] = []
+    bot_win_rates: list[float] = []
+    for baseline in index:
+        bot_win_rate = get_win_rate(bot, baseline, tournament_path)
+        bot_win_rates.append(bot_win_rate)
+        baselines_win_rates.append(1 - bot_win_rate)
+
+    df = pd.DataFrame({
+        f"{bot} win rate": bot_win_rates,
+        "opponent win rate": baselines_win_rates
+    },index=index )
+    df.plot.bar(rot=0, color=["green", "orange"])
+    plt.show()
+
 if __name__ == "__main__":
+    show_win_rate_graph("blitz", "../experiments/blitz_tournament.csv")
     main()

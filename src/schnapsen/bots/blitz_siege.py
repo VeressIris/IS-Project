@@ -39,7 +39,7 @@ class Blitz(Bot):
     def __init__(self, name: Optional[str] = None) -> None:
         super().__init__(name)
         self.delegate_phase1 = HighCardsBot()
-        self.delegate_phase2 = RdeepBot(num_samples=16, depth=4, rand=random.Random())
+        self.delegate_phase2 = RdeepBot(num_samples=4, depth=10, rand=random.Random())
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
         """Get the move for the Bot.
@@ -55,7 +55,7 @@ class Blitz(Bot):
 class Siege(Bot):
     def __init__(self, name: Optional[str] = None) -> None:
         super().__init__(name)
-        self.delegate_phase1 = RdeepBot(num_samples=16, depth=4, rand=random.Random())
+        self.delegate_phase1 = RdeepBot(num_samples=4, depth=10, rand=random.Random())
         self.delegate_phase2 = HighCardsBot()
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
