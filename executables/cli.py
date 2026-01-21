@@ -2,6 +2,7 @@ import random
 import pathlib
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import stats
 
 from typing import Optional
 
@@ -207,6 +208,7 @@ def game_ace_one() -> None:
         winner_id, game_points, score = engine.play_game(bot1, bot2, random.Random(i))
         print(f"Game ended. Winner is {winner_id} with {game_points} points, score {score}")
 
+BASELINES: list[Bot] = [RandBot(random.Random(81), "RandBot"), BullyBot(random.Random(24), "BullyBot"), RdeepBot(4, 10, random.Random(1221), "RdeepBot")]
 def run_tournament(games: int, bot: Bot) -> dict[int, dict[str, any]]:
     """
     Plays 'games' amount of games with 'bot' against RandBot, BullyBot and BullyBot and returns the results of each game.
@@ -220,13 +222,13 @@ def run_tournament(games: int, bot: Bot) -> dict[int, dict[str, any]]:
     """
     engine = SchnapsenGamePlayEngine()
     
-    baselines: list[Bot] = [RandBot(random.Random(81), "RandBot"), BullyBot(random.Random(24), "BullyBot"), RdeepBot(4, 10, random.Random(1221), "RdeepBot")]
-    
     scores:dict[int, dict[str, any]] = {}
 
     game = 1
-    for baseline in baselines:
+    for baseline in BASELINES:
         for i in range(games):
+            if baseline == bot:
+                continue
             state = engine.play_game(bot, baseline, random.Random(i))
             scores[game] = state
             game += 1
@@ -258,6 +260,12 @@ def get_tournament_data(games: int) -> None:
     # store game data for siege
     df = pd.DataFrame.from_dict(siege_scores, orient="index")
     df.to_csv(SIEGE_TOURNAMENTS, index=False)
+
+    for baseline in BASELINES:
+        path = f"../experiments/{baseline.get_name()}_tournament.csv"
+        baseline_scores = run_tournament(games, baseline)
+        df = pd.DataFrame.from_dict(baseline_scores, orient="index")
+        df.to_csv(path, index=False)
 
 def get_win_rate(winner_name: str, opponent_name: str, tournament_path: str) -> float:
     """
@@ -307,6 +315,52 @@ def show_win_rate_graph(bot: str, tournament_path: str) -> None:
     },index=index )
     df.plot.bar(rot=0, color=["green", "orange"])
     plt.show()
+
+def get_bot_scores(bot: str, opponent: str, tournament_path: str) -> list[int]:
+    """
+    Returns a list of the scores the bot earned against its opponent in each game.
+    
+    Params:
+        bot (str): name of bot whose scores we want
+        opponent (str): name of opponent bot 
+        tournament_path (str): path to file that holds the tournament for the bot
+
+    Returns:
+        list[int]: list of scores the bot achieved in each game
+    """
+    
+    df = pd.read_csv(tournament_path)
+
+    winning_games = df[(df["winner"] == bot) & (df["loser"] == opponent)]
+    losing_games  = df[(df["winner"] == opponent) & (df["loser"] == bot)]
+
+    scores = pd.concat([
+        winning_games["winner_score"],
+        losing_games["loser_score"]
+    ]).sort_index()
+
+    return scores.tolist()
+
+def run_ttest(bot: str):
+    path = f"{bot}_tournament.csv"
+    df = pd.read_csv(path)
+    
+    baselines = ["BullyBot", "RandBot", "RdeepBot"]
+    for baseline in baselines:
+        if bot == baseline:
+            continue
+        bot_scores = get_bot_scores(bot, baseline, path)
+        
+@main.command()
+def final_experiment():
+    # 1. paired t-test
+    #       keep p <= 0.05
+    # Friedman test to see if ranks differ significantly across all 5 bots.
+    #     If significant, follow with post-hoc pairwise comparisons (e.g., Wilcoxon signed-rank with Bonferroni correction).
+    # see transitivity (a > b & b > c -> a > c)
+
+    run_ttest("blitz")
+    pass
 
 if __name__ == "__main__":
     main()
