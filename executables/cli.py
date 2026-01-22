@@ -3,6 +3,7 @@ import pathlib
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
+from statistics import mean
 
 from typing import Optional
 
@@ -267,18 +268,35 @@ def get_tournament_data(games: int) -> None:
         df = pd.DataFrame.from_dict(baseline_scores, orient="index")
         df.to_csv(path, index=False)
 
-def get_win_rate(winner_name: str, opponent_name: str, tournament_path: str) -> float:
+
+def get_wins_count(winner_name: str, opponent_name: str) -> int:
+    """
+    Calculates the number of wins a bot achieved against another specified bot.
+    
+    Params:
+        winner_name (str): name of winning bot
+        opponent_name (str): name of opponent bot
+    
+    Returns:
+        int: the number of wins a bot got against another bot
+    """
+    tournament_path = f"../experiments/{winner_name}_tournament.csv"
+    df = pd.read_csv(tournament_path)
+    winning_games = df[(df['winner'] == winner_name) & (df['loser'] == opponent_name)] # get only games played against specified opponent
+    return winning_games.shape[0]
+
+def get_win_rate(winner_name: str, opponent_name: str) -> float:
     """
     Calculates the win rate of a bot against another specified bot.
     
     Params:
         winner_name (str): name of winning bot
         opponent_name (str): name of opponent bot
-        tournament_path (str): path to file that contains the tournament information of the winner bot
     
     Returns:
         float: Win rate of specified bot
     """
+    tournament_path = f"../experiments/{winner_name}_tournament.csv"
     df = pd.read_csv(tournament_path)
     games = df.shape[0] // 3 # divided by 3 because we have 3 baseline bots
     winning_games = df[(df['winner'] == winner_name) & (df['loser'] == opponent_name)] # get only games played against specified opponent
@@ -289,22 +307,21 @@ def get_win_rate(winner_name: str, opponent_name: str, tournament_path: str) -> 
 @main.command()
 @click.option("--bot", type=str)
 @click.option("--tournament-path", type=str)
-def show_win_rate_graph(bot: str, tournament_path: str) -> None:
+def show_win_rate_graph(bot: str) -> None:
     """
     Plot bar graph comparing the win rate of a specified bot against the baselines.
     
     Params:
         bot (str) : name of bot
-        tournament_path (str): path to file that contains the tournament information of the bot
 
     Returns:
         None
     """
-    index: list[str] = ["RandBot", "BullyBot", "RdeepBot"]
-    
+    tournament_path = f"../experiments/{bot}_tournament.csv"
+
     baselines_win_rates: list[float] = []
     bot_win_rates: list[float] = []
-    for baseline in index:
+    for baseline in BASELINE_NAMES:
         bot_win_rate = get_win_rate(bot, baseline, tournament_path)
         bot_win_rates.append(bot_win_rate)
         baselines_win_rates.append(1 - bot_win_rate)
@@ -312,7 +329,7 @@ def show_win_rate_graph(bot: str, tournament_path: str) -> None:
     df = pd.DataFrame({
         f"{bot} win rate": bot_win_rates,
         "opponent win rate": baselines_win_rates
-    },index=index )
+    },index=BASELINE_NAMES)
     df.plot.bar(rot=0, color=["green", "orange"])
     plt.show()
 
@@ -323,8 +340,8 @@ def get_bot_scores(bot: str, opponent: str, tournament_path: str) -> list[int]:
     Params:
         bot (str): name of bot whose scores we want
         opponent (str): name of opponent bot 
-        tournament_path (str): path to file that holds the tournament for the bot
-
+        tournament_path (str): path to file that holds the tournament data where the bot and opponent played
+    
     Returns:
         list[int]: list of scores the bot achieved in each game
     """
@@ -341,26 +358,136 @@ def get_bot_scores(bot: str, opponent: str, tournament_path: str) -> list[int]:
 
     return scores.tolist()
 
-def run_ttest(bot: str):
-    path = f"{bot}_tournament.csv"
-    df = pd.read_csv(path)
+BASELINE_NAMES = ["BullyBot", "RandBot", "RdeepBot"]
+
+def run_bionmial_test_baselines() -> dict[list[float]]:
+    results: dict[tuple, list[float]] = {}
+
+    for baseline in BASELINE_NAMES:
+        for opp_baseline in BASELINE_NAMES:
+            if baseline == opp_baseline:
+                continue
+            
+            wins = get_wins_count(baseline, opp_baseline)
+            results[(baseline, opp_baseline)] = stats.binomtest(wins, 3000).pvalue
+
+    return results
+
+def run_bionmial_test(bot: str) -> dict[list[float]]:
+    results: dict[tuple, list[float]] = {}
+
+    for baseline in BASELINE_NAMES:
+        wins = get_wins_count(bot, baseline)
+        results[(bot, baseline)] = stats.binomtest(wins, 3000).pvalue
+
+    return results
+
+def correct_p_values() -> list[float]:
+    results = run_bionmial_test_baselines() | run_bionmial_test("siege") | run_bionmial_test("blitz")
+    p_values = list(results.values())
+
+    corrected_p_values = stats.false_discovery_control(p_values)
+   
+    i = 0
+    for pair in results.keys():
+        results[pair] = corrected_p_values[i]
+        i += 1
     
-    baselines = ["BullyBot", "RandBot", "RdeepBot"]
-    for baseline in baselines:
-        if bot == baseline:
-            continue
-        bot_scores = get_bot_scores(bot, baseline, path)
+    return results
+
+def get_bot_win_rates() -> dict[tuple, list[float]]:
+    """
+    Get the win rate of each pair of bots.
+
+    Returns:
+        dict[tuple, list[float]]: dictionary of bot pairs and the win rate of the first bot in the pair
+    """
+    win_rates: dict[tuple, list[float]] = {}
+
+    for baseline in BASELINE_NAMES:
+        for opp_baseline in BASELINE_NAMES:
+            if baseline == opp_baseline:
+                continue
+            
+            win_rate = get_win_rate(baseline, opp_baseline)
+            win_rates[(baseline, opp_baseline)] = win_rate
+
+    for baseline in BASELINE_NAMES:
+        win_rate = get_win_rate("siege", baseline)
+        win_rates[("siege", baseline)] = win_rate
+
+        win_rate = get_win_rate("blitz", baseline)
+        win_rates[("blitz", baseline)] = win_rate
+    
+    return win_rates
+
+def get_average_win_rates(win_rates: dict[tuple, list[float]]) -> dict[str, float]:
+    """
+    Computes the average win rate of each of the bots
+    
+    Params:
+
+    Returns:
+
+    """
+    avg_win_rates = {}
+    prev_lead = None
+    prev_sum = 0
+    for pair, win_rate in win_rates.items():
+        if pair[0] != prev_lead and prev_lead:
+            avg_win_rates[prev_lead] = prev_sum / 3 
+            prev_sum = win_rate
+        else:
+            prev_sum += win_rate
         
+        prev_lead = pair[0]
+    return avg_win_rates
+
+# TODO: WHY IS BULLY BOT NOWHERE TO BE FOUND???
+def get_significant_pairwise_wins():
+    win_rates = get_bot_win_rates()
+
+    for baseline in BASELINE_NAMES:
+        win_rate = get_win_rate("siege", baseline)
+        win_rates[("siege", baseline)] = win_rate
+
+        win_rate = get_win_rate("blitz", baseline)
+        win_rates[("blitz", baseline)] = win_rate
+
+    corrected_p_values = correct_p_values()
+    significant_wins = {}
+    for pair, win_rate in win_rates.items():
+        if win_rate > 0.5 and corrected_p_values[pair] <= 0.05:
+            significant_wins[pair[0]] = significant_wins.get(pair[0], 0) + 1
+
+    return significant_wins
+
+# TODO: I feel like blitz should be ranked lower since it does worse than siege against rdeep - is this assumption correct?
+def rank_bots_against_baselines() -> pd.DataFrame:
+    """
+    Ranks the bots (specified bot & baselines) based on significant pairwise wins & win rate
+    
+    Params:
+        bot (str): name of bot we want to compare against the baselines
+
+    Returns:
+
+    """      
+    significant_wins = get_significant_pairwise_wins()
+    significant_wins_df = pd.DataFrame(list(significant_wins.items()), columns=['bot', 'significant_wins'])
+
+    win_rates = get_bot_win_rates()
+    avg_win_rates = get_average_win_rates(win_rates)
+    avg_win_rates_sliced = [avg_win_rates[bot] for bot in significant_wins_df['bot']]
+
+    significant_wins_df["average_win_rate"] = avg_win_rates_sliced
+    significant_wins_df = significant_wins_df.sort_values(by=['significant_wins', 'average_win_rate'], ascending=[False, False])
+    
+    return significant_wins_df
+
 @main.command()
 def final_experiment():
-    # 1. paired t-test
-    #       keep p <= 0.05
-    # Friedman test to see if ranks differ significantly across all 5 bots.
-    #     If significant, follow with post-hoc pairwise comparisons (e.g., Wilcoxon signed-rank with Bonferroni correction).
-    # see transitivity (a > b & b > c -> a > c)
-
-    run_ttest("blitz")
-    pass
+    print(rank_bots_against_baselines())
 
 if __name__ == "__main__":
     main()
