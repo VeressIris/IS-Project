@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 import networkx as nx
+from statistics import mean
 
 from typing import Optional
 
@@ -311,10 +312,9 @@ def get_win_rate(winner_name: str, opponent_name: str) -> float:
 
 @main.command()
 @click.option("--bot", type=str)
-@click.option("--tournament-path", type=str)
 def show_win_rate_graph(bot: str) -> None:
     """
-    Plot bar graph comparing the win rate of a specified bot against the baselines.
+    Plot bar graph comparing the win rate of a specified bot against the baselines and the other bot.
     
     Params:
         bot (str) : name of bot
@@ -322,20 +322,67 @@ def show_win_rate_graph(bot: str) -> None:
     Returns:
         None
     """
-    tournament_path = f"../experiments/{bot}_tournament.csv"
 
     baselines_win_rates: list[float] = []
     bot_win_rates: list[float] = []
     for baseline in BASELINE_NAMES:
-        bot_win_rate = get_win_rate(bot, baseline, tournament_path)
+        bot_win_rate = get_win_rate(bot, baseline)
         bot_win_rates.append(bot_win_rate)
         baselines_win_rates.append(1 - bot_win_rate)
+
+    other_bot = "blitz" if bot == "siege" else "siege"
+
+    index = BASELINE_NAMES
+    index.append(other_bot)
+
+    bot_win_rate = get_win_rate(bot, other_bot)
+    bot_win_rates.append(bot_win_rate)
+    baselines_win_rates.append(1 - bot_win_rate)
 
     df = pd.DataFrame({
         f"{bot} win rate": bot_win_rates,
         "opponent win rate": baselines_win_rates
-    },index=BASELINE_NAMES)
-    df.plot.bar(rot=0, color=["green", "orange"])
+    },index=index)
+    df.plot.bar(rot=0, color=["lightseagreen", "tomato"])
+    plt.show()
+
+@main.command()
+@click.option("--bot", type=str)
+def show_average_points_graph(bot: str) -> None:
+    """
+    Plot bar graph comparing the win rate average score of a specified bot against the baselines.
+    
+    Params:
+        bot (str) : name of bot
+
+    Returns:
+        None
+    """
+
+    path = f"../experiments/{bot}_tournament.csv"
+
+    avg_baselines_scores: list[float] = []
+    avg_bot_scores: list[float] = []
+    for baseline in BASELINE_NAMES:
+        avg_bot_score = mean(get_bot_scores(bot, baseline, path))
+        avg_bot_scores.append(avg_bot_score)
+        avg_baselines_scores.append(mean(get_bot_scores(baseline, bot, path)))
+
+    other_bot = "blitz" if bot == "siege" else "siege"
+
+    index = BASELINE_NAMES
+    index.append(other_bot)
+
+    avg_bot_score = mean(get_bot_scores(bot, other_bot, path))
+    avg_bot_scores.append(avg_bot_score)
+    avg_baselines_scores.append(mean(get_bot_scores(other_bot, bot, path)))
+
+    df = pd.DataFrame({
+        f"average score - {bot}": avg_bot_scores,
+        "average score - opponent": avg_baselines_scores
+    },index=index)
+
+    df.plot.bar(rot=0, color=["gold", "crimson"])
     plt.show()
 
 def get_bot_scores(bot: str, opponent: str, tournament_path: str) -> list[int]:
