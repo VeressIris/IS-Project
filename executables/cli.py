@@ -524,7 +524,7 @@ def rank_bots() -> pd.DataFrame:
     
     return better_than_df
 
-def infer_performance_rankings():
+def infer_performance_rankings() -> tuple[dict, nx.DiGraph]:
     G = nx.DiGraph()
 
     ranking = rank_bots()
@@ -537,12 +537,40 @@ def infer_performance_rankings():
         for bot in G.nodes
     }
 
-    return results
+    return (results, G)
 
 @main.command()
 def final_experiment():
     performance_rankings = infer_performance_rankings()
-    print(performance_rankings)
+    print(performance_rankings[0])
+
+@main.command()
+def show_ranking():
+    _, G = infer_performance_rankings()
+
+    # compute layer based on number of ancestors
+    layers = {node: len(nx.ancestors(G, node)) for node in G.nodes}
+    nx.set_node_attributes(G, layers, "layer")
+
+    pos = nx.multipartite_layout(G, subset_key="layer")
+
+    plt.figure(figsize=(8, 6))
+    nx.draw(
+        G,
+        pos,
+        with_labels=True,
+        node_size=3750,
+        arrows=True,
+        node_color="lightseagreen",
+        font_size=13
+    )
+
+    # show weights
+    edge_labels = nx.get_edge_attributes(G, "weight")
+    formatted_labels = {k: f"{v:.2f}" for k, v in edge_labels.items()}
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=formatted_labels, font_size=12)
+
+    plt.show()
 
 if __name__ == "__main__":
     main()
