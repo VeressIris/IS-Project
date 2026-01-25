@@ -7,7 +7,7 @@ from schnapsen.game import (
     RegularMove
 )
 from typing import Optional
-from schnapsen import bot_import
+from schnapsen.bot_import import import_rdeep
 
 class HighCardsBot(Bot):
     '''Represents a bot which always:
@@ -61,8 +61,8 @@ class Blitz(Bot):
         
     def __init__(self, name: Optional[str] = None) -> None:
         super().__init__(name)
-        self.delegate_phase1 = HighCardsBot
-        self.delegate_phase2 = bot_import()
+        self.delegate_phase1 = HighCardsBot()
+        self.delegate_phase2 = import_rdeep()
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
         """Decision making process on which move the bot will make.
@@ -89,8 +89,8 @@ class Siege(Bot):
 
     def __init__(self, name: Optional[str] = None) -> None:
         super().__init__(name)
-        self.delegate_phase1 = bot_import()
-        self.delegate_phase2 = HighCardsBot
+        self.delegate_phase1 = import_rdeep()
+        self.delegate_phase2 = HighCardsBot()
     
     def get_move(self, perspective: PlayerPerspective, leader_move: Move | None) -> Move:
         """Decision making process on which move the bot will make.
@@ -100,5 +100,5 @@ class Siege(Bot):
             return self.delegate_phase1.get_move(perspective, leader_move)
         if perspective.get_phase() == GamePhase.TWO:
             #delegates to HighCardsBot
-            return self.delegate_phase1.get_move(perspective, leader_move)
+            return self.delegate_phase2.get_move(perspective, leader_move)
         
