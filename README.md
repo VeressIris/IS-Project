@@ -5,7 +5,7 @@
 To use the platform, your python version must be at least 3.10.
 The code has been tested with python 3.13, let us know if you encounter issues.
 
-We strongly suggest installing conda (or pip) and using an environment.
+We strongly suggest installing conda and using an environment.
 
 ### Create environment
 
