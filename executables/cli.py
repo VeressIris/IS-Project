@@ -47,7 +47,7 @@ def run_tournament(games: int, bot: Bot, other_bot: Bot = None) -> dict[int, dic
 
     game = 1
     for baseline in BASELINES:
-        for i in range(games):
+        for i in range(games // 2):
             if baseline == bot:
                 continue
             # Play with bot as leader
@@ -60,7 +60,7 @@ def run_tournament(games: int, bot: Bot, other_bot: Bot = None) -> dict[int, dic
             game += 1
     
     if other_bot is not None:
-        for i in range(games):
+        for i in range(games // 2):
             # Play with bot as leader
             state = engine.play_game(bot, other_bot, random.Random(i))
             scores[game] = state
@@ -73,7 +73,7 @@ def run_tournament(games: int, bot: Bot, other_bot: Bot = None) -> dict[int, dic
     return scores
 
 @main.command()
-@click.option("--games", default=1500, show_default=True, type=int)
+@click.option("--games", default=3000, show_default=True, type=int)
 def get_tournament_data(games: int) -> None:
     """
     Stores scores of each game the bots played against the baseline and each other in separate csv files.
@@ -110,7 +110,7 @@ def get_tournament_data(games: int) -> None:
             bot2 = all_bots[bot2_name]
             
             # Play games with role alternation
-            for game_idx in range(games):
+            for game_idx in range(games // 2):
                 # bot1 as leader
                 state = engine.play_game(bot1, bot2, random.Random(game_idx))
                 all_games[bot1_name][len(all_games[bot1_name]) + 1] = state

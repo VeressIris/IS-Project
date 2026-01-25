@@ -77,7 +77,7 @@ If you want to change the number of games played you can add instead run `python
 For example, to run 5000 games, execute
 
 ```sh
-python cli.py get-tournament-data --games=2500
+python cli.py get-tournament-data --games=5000
 ```
 
 ### Running the actual experiment
