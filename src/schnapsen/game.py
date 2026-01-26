@@ -2077,7 +2077,6 @@ class GamePlayEngine:
         game_state_copy = game_state.copy_with_other_bots(new_leader=new_leader, new_follower=new_follower)
         return self.play_game_from_state(game_state_copy, leader_move=leader_move)
 
-    # def play_game_from_state(self, game_state: GameState, leader_move: Optional[Move]) -> tuple[Bot, int, Score]:
     def play_game_from_state(self, game_state: GameState, leader_move: Optional[Move]) -> dict[str, any]:
         """
         Continue a game  which might have been started before.
@@ -2105,6 +2104,7 @@ class GamePlayEngine:
         loser_state = LoserPerspective(game_state, self)
         game_state.follower.implementation.notify_game_end(False, perspective=loser_state)
 
+        # create dictionary with important data needed for experiment: winner, winner_score, loser, loser_score
         state_dict = {
             "winner": winner.implementation.get_name(),
             "winner_score": winner.score.direct_points,
