@@ -1,76 +1,68 @@
 import random
-import pathlib
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 import networkx as nx
 from statistics import mean
 
-from typing import Optional
-
 import click
-from schnapsen.alternative_engines.ace_one_engine import AceOneGamePlayEngine
 
-from schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot, BullyBot
+from schnapsen.bots import RandBot, BullyBot
 
-from schnapsen.bots.example_bot import ExampleBot
 from schnapsen.bots.blitz_siege import Blitz, Siege
 
-from schnapsen.game import (Bot, GamePlayEngine, Move, PlayerPerspective,
-                            SchnapsenGamePlayEngine, TrumpExchange)
-from schnapsen.alternative_engines.twenty_four_card_schnapsen import TwentyFourSchnapsenGamePlayEngine
+from schnapsen.game import (Bot, SchnapsenGamePlayEngine)
 
 from schnapsen.bots.rdeep import RdeepBot
-
 
 @click.group()
 def main() -> None:
     """Various Schnapsen Game Examples"""
 
 BASELINES: list[Bot] = [RandBot(random.Random(81), "RandBot"), BullyBot(random.Random(24), "BullyBot"), RdeepBot(4, 10, random.Random(1221), "RdeepBot")]
-def run_tournament(games: int, bot: Bot, other_bot: Bot = None) -> dict[int, dict[str, any]]:
+def play_pair(
+    engine: SchnapsenGamePlayEngine,
+    bot1: Bot,
+    bot2: Bot,
+    games: int,
+    all_games: dict,
+) -> None:
     """
-    Plays 'games' amount of games with 'bot' against RandBot, BullyBot and RdeepBot and our other bot.
-    Each matchup plays games with alternating leader/follower roles, using consistent seeds for the same bot pairs.
+    Play games between two bots with role alternation and store results.
 
     Params:
-        games (int): number of games to play (total games will be 2*games due to role swapping)
-        bot (Bot): the bot that plays against the baseline bots
-        other_bot (Bot): the other custom bot (blitz or siege) to play against
+        engine (SchnapsenGamePlayEngine): the schnapsen game engine required to play the games between the bots
+        bot1 (Bot): first bot in tournament
+        bot2 (Bot): second bot in tournament
+        games (int): number of total games between bot1 and bot2
+        all_games (dict): dictionary where the tournament data is stored
+    
+    Returns:
+        None
+    """
+    for game in range(games // 2):
+        for leader, follower in [(bot1, bot2), (bot2, bot1)]:
+            leader_name = leader.get_name()
+            follower_name = follower.get_name()
+            state = engine.play_game(leader, follower, random.Random(game))
+            all_games[leader_name][len(all_games[leader_name]) + 1] = state
+            all_games[follower_name][len(all_games[follower_name]) + 1] = state
+
+def save_tournament(bot_name: str, games: dict, path: str) -> None:
+    """
+    Save a bot's tournament data to .csv file
+    
+    Params:
+        bot_name (str): name of bot whose data should be stored
+        games (dict): games data
+        path (str): path to file where the tournmanet data should be saved
 
     Returns:
-        dict[int, dict[str, any]]: The name of the winner, score of the winner, name of loser and score of loser in each match
+        None
     """
-    engine = SchnapsenGamePlayEngine()
-    
-    scores:dict[int, dict[str, any]] = {}
+    df = pd.DataFrame.from_dict(games[bot_name], orient="index")
+    df.to_csv(path, index=False)
 
-    game = 1
-    for baseline in BASELINES:
-        for i in range(games // 2):
-            if baseline == bot:
-                continue
-            # Play with bot as leader
-            state = engine.play_game(bot, baseline, random.Random(i))
-            scores[game] = state
-            game += 1
-            # Play with bot as follower (same seed ensures same card dealing)
-            state = engine.play_game(baseline, bot, random.Random(i))
-            scores[game] = state
-            game += 1
-    
-    if other_bot is not None:
-        for i in range(games // 2):
-            # Play with bot as leader
-            state = engine.play_game(bot, other_bot, random.Random(i))
-            scores[game] = state
-            game += 1
-            # Play with bot as follower (same seed ensures same card dealing)
-            state = engine.play_game(other_bot, bot, random.Random(i))
-            scores[game] = state
-            game += 1
-
-    return scores
 
 @main.command()
 @click.option("--games", default=3000, show_default=True, type=int)
@@ -79,75 +71,42 @@ def get_tournament_data(games: int) -> None:
     Stores scores of each game the bots played against the baseline and each other in separate csv files.
     
     Params:
-        games (int): number of different games the bots should play against the baseline bots.
+        games (int): number of total games
 
     Returns:
         None
     """
-    BLITZ_TOURNAMENTS: str = "../experiments/blitz_tournament.csv"
-    SIEGE_TOURNAMENTS: str = "../experiments/siege_tournament.csv"
-    
-    # Create ALL bot instances ONCE - these will be shared across all games
+    BASE_PATH = "../experiments"
+
     blitz = Blitz("blitz")
     siege = Siege("siege")
-    baselines_dict = {
-        "RandBot": RandBot(random.Random(81), "RandBot"),
-        "BullyBot": BullyBot(random.Random(24), "BullyBot"),
-        "RdeepBot": RdeepBot(4, 10, random.Random(1221), "RdeepBot")
-    }
-    
-    all_bots = {"blitz": blitz, "siege": siege, **baselines_dict}
-    engine = SchnapsenGamePlayEngine()
-    
-    # Store all games for each bot
-    all_games = {name: {} for name in all_bots.keys()}
-    
-    # Play all unique pairings ONCE
-    bot_names = list(all_bots.keys())
-    for i, bot1_name in enumerate(bot_names):
-        for bot2_name in bot_names[i+1:]:
-            bot1 = all_bots[bot1_name]
-            bot2 = all_bots[bot2_name]
-            
-            # Play games with role alternation
-            for game_idx in range(games // 2):
-                # bot1 as leader
-                state = engine.play_game(bot1, bot2, random.Random(game_idx))
-                all_games[bot1_name][len(all_games[bot1_name]) + 1] = state
-                all_games[bot2_name][len(all_games[bot2_name]) + 1] = state
-                
-                # bot1 as follower
-                state = engine.play_game(bot2, bot1, random.Random(game_idx))
-                all_games[bot1_name][len(all_games[bot1_name]) + 1] = state
-                all_games[bot2_name][len(all_games[bot2_name]) + 1] = state
-    
-    # Save all tournament files
-    df = pd.DataFrame.from_dict(all_games["blitz"], orient="index")
-    df.to_csv(BLITZ_TOURNAMENTS, index=False)
-    
-    df = pd.DataFrame.from_dict(all_games["siege"], orient="index")
-    df.to_csv(SIEGE_TOURNAMENTS, index=False)
-    
-    for baseline_name in baselines_dict.keys():
-        path = f"../experiments/{baseline_name}_tournament.csv"
-        df = pd.DataFrame.from_dict(all_games[baseline_name], orient="index")
-        df.to_csv(path, index=False)
 
-def get_wins_count(winner_name: str, opponent_name: str) -> int:
-    """
-    Calculates the number of wins a bot achieved against another specified bot.
-    
-    Params:
-        winner_name (str): name of winning bot
-        opponent_name (str): name of opponent bot
-    
-    Returns:
-        int: the number of wins a bot got against another bot
-    """
-    tournament_path = f"../experiments/{winner_name}_tournament.csv"
-    df = pd.read_csv(tournament_path)
-    winning_games = df[(df['winner'] == winner_name) & (df['loser'] == opponent_name)] # get only games played against specified opponent
-    return winning_games.shape[0]
+    all_bots = BASELINES + [blitz, siege]
+    engine = SchnapsenGamePlayEngine()
+
+    # init empty dictionary with bot names as keys
+    all_games = {bot.get_name(): {} for bot in all_bots}
+
+    for i, bot1 in enumerate(all_bots):
+        for bot2 in all_bots[i+1:]:
+            play_pair(
+                engine,
+                bot1,
+                bot2,
+                games,
+                all_games,
+            )
+
+    save_tournament("blitz", all_games, f"{BASE_PATH}/blitz_tournament.csv")
+    save_tournament("siege", all_games, f"{BASE_PATH}/siege_tournament.csv")
+
+    for baseline in BASELINES:
+        baseline_name = baseline.get_name()
+        save_tournament(
+            baseline_name,
+            all_games,
+            f"{BASE_PATH}/{baseline_name}_tournament.csv",
+        )
 
 def get_win_rate(winner_name: str, opponent_name: str) -> float:
     """
@@ -276,8 +235,30 @@ def get_bot_scores(bot: str, opponent: str, tournament_path: str) -> list[int]:
 
 BASELINE_NAMES = ["BullyBot", "RandBot", "RdeepBot"]
 
-def run_bionmial_test_baselines() -> dict[list[float]]:
-    results: dict[tuple, list[float]] = {}
+def get_wins_count(winner_name: str, opponent_name: str) -> int:
+    """
+    Calculates the number of wins a bot achieved against another specified bot.
+    
+    Params:
+        winner_name (str): name of winning bot
+        opponent_name (str): name of opponent bot
+    
+    Returns:
+        int: the number of wins a bot got against another bot
+    """
+    tournament_path = f"../experiments/{winner_name}_tournament.csv"
+    df = pd.read_csv(tournament_path)
+    winning_games = df[(df['winner'] == winner_name) & (df['loser'] == opponent_name)] # get only games played against specified opponent
+    return winning_games.shape[0]
+
+def run_bionmial_test_baselines() -> dict[tuple, float]:
+    """
+    Run a binomial test comparing the win rates of baseline bots with the alternative hypothesis p > 0.5
+    
+    Returns:
+        dict[tuple, float]: dictionary of the pairs of bots and their resulting p-values
+    """
+    results: dict[tuple, float] = {}
 
     for baseline in BASELINE_NAMES:
         for opp_baseline in BASELINE_NAMES:
@@ -285,54 +266,64 @@ def run_bionmial_test_baselines() -> dict[list[float]]:
                 continue
             
             wins = get_wins_count(baseline, opp_baseline)
-            # Calculate total games from the CSV data
+            # calculate total games from the CSV data
             tournament_path = f"../experiments/{baseline}_tournament.csv"
             df = pd.read_csv(tournament_path)
             games_against_opponent = df[((df['winner'] == baseline) & (df['loser'] == opp_baseline)) | 
                                           ((df['winner'] == opp_baseline) & (df['loser'] == baseline))]
             total_games = games_against_opponent.shape[0]
             
-            if total_games > 0:
-                results[(baseline, opp_baseline)] = stats.binomtest(wins, total_games, alternative="greater").pvalue
+            results[(baseline, opp_baseline)] = stats.binomtest(wins, total_games, alternative="greater").pvalue
 
     return results
 
-def run_bionmial_test(bot: str) -> dict[tuple, list[float]]:
-    # Are the bot's win rates against the baselines + other bot meaningfully above 50%
-    results: dict[tuple, list[float]] = {}
+def run_bionmial_test(bot: str) -> dict[tuple, float]:
+    """
+    Run a binomial test comparing the win rates of blitz and siege against the baselines and each other with the alternative hypothesis p > 0.5
+    
+    Returns:
+        dict[tuple, float]: dictionary of the pairs of bots and their resulting p-values
+    """
+    results: dict[tuple, float] = {}
+    
     tournament_path = f"../experiments/{bot}_tournament.csv"
     df = pd.read_csv(tournament_path)
 
     for baseline in BASELINE_NAMES:
         wins = get_wins_count(bot, baseline)
-        # Calculate total games from the CSV data
+        # calculate total games from the CSV data
         games_against_opponent = df[((df['winner'] == bot) & (df['loser'] == baseline)) | 
                                       ((df['winner'] == baseline) & (df['loser'] == bot))]
         total_games = games_against_opponent.shape[0]
         
-        if total_games > 0:
-            results[(bot, baseline)] = stats.binomtest(wins, total_games, alternative="greater").pvalue
+        results[(bot, baseline)] = stats.binomtest(wins, total_games, alternative="greater").pvalue
 
+    # run binomial test between siege and blitz
     other_bot = "blitz" if bot == "siege" else "siege"
     wins = get_wins_count(bot, other_bot)
-    # Calculate total games from the CSV data
+    # calculate total games from the CSV data
     games_against_opponent = df[((df['winner'] == bot) & (df['loser'] == other_bot)) | 
                                   ((df['winner'] == other_bot) & (df['loser'] == bot))]
     total_games = games_against_opponent.shape[0]
     
-    if total_games > 0:
-        results[(bot, other_bot)] = stats.binomtest(wins, total_games, alternative="greater").pvalue
+    results[(bot, other_bot)] = stats.binomtest(wins, total_games, alternative="greater").pvalue
     
     return results
 
-def correct_p_values() -> dict[tuple, list[float]]:
+def correct_p_values() -> dict[tuple, float]:
+    """
+    Correct previous p-values
+    
+    Returns:
+        dict[tuple, float]: dictionary of the pairs of bots and their corrected p-values
+    """
     results = run_bionmial_test_baselines() | run_bionmial_test("siege") | run_bionmial_test("blitz")
     
-    # Also test baselines against siege and blitz
+    # also test baselines against siege and blitz, not just siege and blits against baselines
     for baseline in BASELINE_NAMES:
         for bot in ["siege", "blitz"]:
             wins = get_wins_count(baseline, bot)
-            # Calculate total games from the CSV data
+            # calculate total games from the CSV data
             tournament_path = f"../experiments/{bot}_tournament.csv"
             df = pd.read_csv(tournament_path)
             games_against_opponent = df[((df['winner'] == baseline) & (df['loser'] == bot)) | 
@@ -392,6 +383,7 @@ def rank_bots() -> pd.DataFrame:
         win_rate_bot_1 = get_win_rate(pair[0], pair[1])
         win_rate_bot_2 = get_win_rate(pair[1], pair[0])
 
+        # only count a bot as better than another if 1. it has statistical significance and 2. its win rate is higher than the other one's win rate
         if p_value <= 0.05 and win_rate_bot_1 > win_rate_bot_2:
             better_than[pair] = get_win_rate(pair[0], pair[1])
 
@@ -403,6 +395,12 @@ def rank_bots() -> pd.DataFrame:
     return better_than_df
 
 def infer_performance_rankings() -> tuple[dict, nx.DiGraph]:
+    """
+    Create a graph of the ranking
+    
+    Returns:
+        tuple[dict, DiGraph]: the bot ranking in dictionary form and a directed graph of the ranking
+    """
     G = nx.DiGraph()
 
     ranking = rank_bots()
@@ -418,7 +416,13 @@ def infer_performance_rankings() -> tuple[dict, nx.DiGraph]:
     return (results, G)
 
 @main.command()
-def final_experiment():
+def final_experiment() -> None:
+    """
+    Runs the final experiment: binomial test, correct p-values and create final bot ranking.
+
+    Returns:
+        None
+    """
     print("Binomial test (H_0: win_prob(bot1, bot2) = 0.5; H_1: win_prob(bot1, bot2) > 0.5)")
     print("blitz & siege p-values:")
     print(run_bionmial_test("blitz"))
@@ -436,7 +440,13 @@ def final_experiment():
     print(f"\nIf you wish to visualize the ranking in the form of a graph, run `show-ranking` command.")
 
 @main.command()
-def show_ranking():
+def show_ranking() -> None:
+    """
+    Plot directed graph of bot ranking
+
+    Returns:
+        None
+    """
     _, G = infer_performance_rankings()
 
     # compute layer based on number of ancestors
